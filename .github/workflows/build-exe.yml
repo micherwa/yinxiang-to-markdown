@@ -1,4 +1,4 @@
-name: 打包 Windows exe
+name: Build Windows exe
 
 on:
   workflow_dispatch:  # 手动触发
@@ -21,17 +21,17 @@ jobs:
 
       - name: Build exe
         run: |
-          pyinstaller --onefile --name 转换 --hidden-import=src --hidden-import=src.main --hidden-import=src.decryptor --hidden-import=src.converter --hidden-import=src.resource_handler app.py
+          pyinstaller --onefile --name convert --hidden-import=src --hidden-import=src.main --hidden-import=src.decryptor --hidden-import=src.converter --hidden-import=src.resource_handler app.py
 
       - name: Prepare distribution
         run: |
-          mkdir dist\印象笔记转换工具
-          copy dist\转换.exe dist\印象笔记转换工具\
-          mkdir dist\印象笔记转换工具\input
-          mkdir dist\印象笔记转换工具\output
+          mkdir package
+          copy dist\convert.exe package\
+          mkdir package\input
+          mkdir package\output
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: 印象笔记转换工具-windows
-          path: dist/印象笔记转换工具/
+          name: yinxiang-converter-windows
+          path: package/
