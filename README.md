@@ -2,6 +2,8 @@
 
 将印象笔记（Evernote China）导出的 `.notes` 文件批量转换为 Markdown 格式，便于导入 Obsidian 等笔记软件。
 
+> **免责声明**：本工具仅用于将用户**自己**导出的 `.notes` 文件转换为 Markdown，便于个人备份与迁移。请确保你拥有所处理数据的合法权利。使用本工具造成的数据损失或任何法律风险由使用者自行承担。
+
 ---
 
 ## 快速使用（非程序人员）
@@ -120,3 +122,13 @@ python -m pytest tests/ -v
 pip install pyinstaller
 pyinstaller --onefile --name convert --hidden-import=src --hidden-import=src.main --hidden-import=src.decryptor --hidden-import=src.converter --hidden-import=src.resource_handler app.py
 ```
+
+---
+
+## 致谢
+
+`.notes` 加密格式的逆向分析参考了开源项目 [HNIdesu/YinxiangbijiConverter](https://github.com/HNIdesu/YinxiangbijiConverter)。
+
+## License
+
+[MIT](./LICENSE)

@@ -3,9 +3,11 @@
 import base64
 import hashlib
 import hmac
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional, Union
+from xml.etree.ElementTree import Element
+
+import defusedxml.ElementTree as ET
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -79,7 +81,7 @@ def decrypt_content(data: bytes) -> str:
     return _decrypt_content_raw(data).decode("utf-8")
 
 
-def _parse_resource(res_elem: ET.Element) -> Optional[dict]:
+def _parse_resource(res_elem: Element) -> Optional[dict]:
     """Parse a resource element into a dict with data, mime, filename, md5."""
     data_elem = res_elem.find("data")
     if data_elem is None or data_elem.text is None:

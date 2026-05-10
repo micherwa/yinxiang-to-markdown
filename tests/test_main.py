@@ -1,5 +1,9 @@
 """Tests for the main CLI module."""
 
+from pathlib import Path
+
+import pytest
+
 from src.main import sanitize_filename, format_datetime, convert_notes_file, _build_front_matter
 
 
@@ -44,12 +48,16 @@ def test_front_matter_no_tags():
 
 
 def test_convert_notes_file(tmp_path):
+    samples = sorted(Path("input").glob("*.notes")) if Path("input").exists() else []
+    if not samples:
+        pytest.skip("no sample .notes file in input/")
+    sample = samples[0]
     output_dir = tmp_path / "output"
-    convert_notes_file("input/广告业务.notes", output_dir)
-    notebook_dir = output_dir / "广告业务"
+    convert_notes_file(sample, output_dir)
+    notebook_dir = output_dir / sample.stem
     assert notebook_dir.exists()
     md_files = list(notebook_dir.glob("*.md"))
-    assert len(md_files) == 4
+    assert len(md_files) > 0
     content = md_files[0].read_text(encoding="utf-8")
-    assert "---" in content
+    assert content.startswith("---")
     assert "title:" in content

@@ -3,6 +3,9 @@ name: Build Windows exe
 on:
   workflow_dispatch:  # 手动触发
 
+permissions:
+  contents: read
+
 jobs:
   build-windows:
     runs-on: windows-latest
