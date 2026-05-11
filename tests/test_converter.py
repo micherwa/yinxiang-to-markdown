@@ -93,3 +93,56 @@ def test_table():
     assert "| Name | Age |" in md
     assert "| --- | --- |" in md
     assert "| Alice | 30 |" in md
+
+
+def test_blockquote():
+    enml = '<en-note><blockquote>quoted text</blockquote></en-note>'
+    md = enml_to_markdown(enml, {})
+    assert "> quoted text" in md
+
+
+def test_blockquote_multiline():
+    enml = '<en-note><blockquote><div>line one</div><div>line two</div></blockquote></en-note>'
+    md = enml_to_markdown(enml, {})
+    assert "> line one" in md
+    assert "> line two" in md
+
+
+def test_strikethrough_del():
+    enml = '<en-note><del>gone</del></en-note>'
+    md = enml_to_markdown(enml, {})
+    assert "~~gone~~" in md
+
+
+def test_strikethrough_s():
+    enml = '<en-note><s>obsolete</s></en-note>'
+    md = enml_to_markdown(enml, {})
+    assert "~~obsolete~~" in md
+
+
+def test_underline_kept_as_html():
+    enml = '<en-note><u>important</u></en-note>'
+    md = enml_to_markdown(enml, {})
+    assert "<u>important</u>" in md
+
+
+def test_subscript_superscript():
+    enml = '<en-note>H<sub>2</sub>O and x<sup>2</sup></en-note>'
+    md = enml_to_markdown(enml, {})
+    assert "<sub>2</sub>" in md
+    assert "<sup>2</sup>" in md
+
+
+def test_nested_unordered_list():
+    enml = '<en-note><ul><li>outer<ul><li>inner</li></ul></li></ul></en-note>'
+    md = enml_to_markdown(enml, {})
+    assert "- outer" in md
+    assert "  - inner" in md
+
+
+def test_en_todo_in_div():
+    """en-todo inside a div should produce a checkbox followed by the div's text."""
+    enml = '<en-note><div><en-todo checked="true"/>Task A</div><div><en-todo checked="false"/>Task B</div></en-note>'
+    md = enml_to_markdown(enml, {})
+    assert "- [x] Task A" in md
+    assert "- [ ] Task B" in md

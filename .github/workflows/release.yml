@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:  # 允许手动触发用于测试
+
+permissions:
+  contents: write  # 创建 release 需要写权限
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: yinxiang-converter-windows
+            exe_name: convert.exe
+            archive_ext: zip
+          - os: macos-latest
+            artifact_name: yinxiang-converter-macos
+            exe_name: convert
+            archive_ext: tar.gz
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build executable
+        run: |
+          pyinstaller --onefile --name convert \
+            --hidden-import=src --hidden-import=src.main \
+            --hidden-import=src.decryptor --hidden-import=src.converter \
+            --hidden-import=src.resource_handler app.py
+        shell: bash
+
+      - name: Stage package (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir package
+          copy dist\${{ matrix.exe_name }} package\
+          mkdir package\input
+          mkdir package\output
+          copy README.md package\
+          copy LICENSE package\
+        shell: cmd
+
+      - name: Stage package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p package/input package/output
+          cp dist/${{ matrix.exe_name }} package/
+          cp README.md LICENSE package/
+
+      - name: Archive (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd package
+          7z a ../${{ matrix.artifact_name }}.zip *
+        shell: bash
+
+      - name: Archive (macOS)
+        if: runner.os == 'macOS'
+        run: tar -czf ${{ matrix.artifact_name }}.tar.gz -C package .
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}.${{ matrix.archive_ext }}
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/yinxiang-converter-windows/*.zip
+            artifacts/yinxiang-converter-macos/*.tar.gz
+          generate_release_notes: true
+          body: |
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+
+            **Downloads**
+
+            - **Windows**: `yinxiang-converter-windows.zip` — extract and double-click `convert.exe`
+            - **macOS**: `yinxiang-converter-macos.tar.gz` — extract; on first run right-click → Open to bypass Gatekeeper

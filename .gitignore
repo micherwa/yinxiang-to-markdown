@@ -5,3 +5,20 @@ dist/
 build/
 *.spec
 docs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+
+# Local user data (never commit private notes)
+input/*.notes
+output/*/
+
+# Python packaging
+*.egg-info/
+.coverage
+htmlcov/

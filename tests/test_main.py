@@ -14,6 +14,32 @@ def test_sanitize_filename():
     assert sanitize_filename("  spaces  ") == "spaces"
 
 
+def test_sanitize_filename_windows_reserved():
+    assert sanitize_filename("CON") == "_CON"
+    assert sanitize_filename("nul") == "_nul"
+    assert sanitize_filename("COM1.txt") == "_COM1.txt"
+
+
+def test_sanitize_filename_trailing_dots_and_spaces():
+    assert sanitize_filename("name.") == "name"
+    assert sanitize_filename("name. . ") == "name"
+
+
+def test_sanitize_filename_control_chars():
+    assert sanitize_filename("a\x00b\x1fc") == "a_b_c"
+
+
+def test_sanitize_filename_truncation():
+    long = "x" * 500
+    out = sanitize_filename(long)
+    assert len(out) <= 200
+
+
+def test_sanitize_filename_empty_after_strip():
+    assert sanitize_filename("...") == ""
+    assert sanitize_filename("   ") == ""
+
+
 def test_format_datetime():
     assert format_datetime("20220403T233652Z") == "2022-04-03T23:36:52Z"
     assert format_datetime("") == ""

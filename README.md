@@ -1,5 +1,10 @@
 # 印象笔记 .notes → Markdown 转换工具
 
+[![Test](https://github.com/micherwa/yinxiang-to-markdown/actions/workflows/test.yml/badge.svg)](https://github.com/micherwa/yinxiang-to-markdown/actions/workflows/test.yml)
+[![Release](https://img.shields.io/github/v/release/micherwa/yinxiang-to-markdown?label=release)](https://github.com/micherwa/yinxiang-to-markdown/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
 将印象笔记（Evernote China）导出的 `.notes` 文件批量转换为 Markdown 格式，便于导入 Obsidian 等笔记软件。
 
 > **免责声明**：本工具仅用于将用户**自己**导出的 `.notes` 文件转换为 Markdown，便于个人备份与迁移。请确保你拥有所处理数据的合法权利。使用本工具造成的数据损失或任何法律风险由使用者自行承担。
@@ -8,34 +13,35 @@
 
 ## 快速使用（非程序人员）
 
-### macOS 用户
+到 [Releases 页面](https://github.com/micherwa/yinxiang-to-markdown/releases/latest) 下载对应平台的压缩包：
 
-需先安装 Python 环境，然后按以下步骤操作：
+### Windows
 
-1. 将 `.notes` 文件放进 `input/` 目录
-2. 双击 `转换.command`
-3. 转换后的 Markdown 文件在 `output/` 目录中，直接拷贝到 Obsidian vault 即可使用
+1. 下载 `yinxiang-converter-windows.zip` 并解压
+2. 将 `.notes` 文件放进 `input/` 目录
+3. 双击 `convert.exe`
+4. 转换后的 Markdown 文件在 `output/` 目录中，直接拷贝到 Obsidian vault 即可使用
 
-### Windows 用户
+### macOS
 
-无需安装任何环境，直接使用独立版：
+1. 下载 `yinxiang-converter-macos.tar.gz` 并解压
+2. 将 `.notes` 文件放进 `input/` 目录
+3. 双击 `convert`（首次打开会被 Gatekeeper 拦截 → 在 Finder 里**右键 → 打开** → 弹窗里再点"打开"）
+4. 转换后的 Markdown 文件在 `output/` 目录中
 
-1. 下载 [最新发布的 Windows 版本](../../actions/workflows/build-exe.yml)（点击最近一次运行 → 下载 `yinxiang-converter-windows`）
-2. 解压后得到 `convert.exe`、`input/`、`output/` 三个文件
-3. 将 `.notes` 文件放进 `input/` 目录
-4. 双击 `convert.exe`
-5. 转换后的 Markdown 文件在 `output/` 目录中
+> 也可以从源码运行：见下方"开发者指南"。
 
 ---
 
 ## 功能特性
 
-- 自动解密 `.notes` 文件（AES-128-CBC 加密）
-- 转换 ENML 为标准 Markdown
+- 自动解密 `.notes` 文件（AES-128-CBC + HMAC-SHA256 完整性校验）
+- 转换 ENML 为标准 Markdown：标题、加粗/斜体、删除线、上下标、引用、链接、表格、嵌套列表、待办、代码块
 - 提取图片和附件到 `assets/` 目录
 - 保留笔记元数据（标题、创建时间、更新时间、标签）
 - 按笔记本名称分文件夹组织输出
-- Obsidian 兼容（标签格式、图片路径）
+- Obsidian 兼容（YAML 标签格式、相对图片路径）
+- 安全：使用 `defusedxml` 防御不可信 XML 输入
 
 ---
 
@@ -79,51 +85,69 @@ tags:
 
 ## 开发者指南
 
+### 环境要求
+
+- Python 3.9+
+
 ### 环境安装
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+# 或固定版本：pip install -r requirements.lock
 ```
 
 ### CLI 命令行
 
-**转换单个文件：**
-
 ```bash
+# 转换单个文件
 python -m src.main path/to/笔记本.notes -o output/
-```
 
-**转换整个目录：**
-
-```bash
+# 转换整个目录
 python -m src.main path/to/notes_dir/ -o output/
+
+# 重复运行时的策略
+python -m src.main input/ -o output/ --skip-existing   # 跳过已有的
+python -m src.main input/ -o output/ --overwrite       # 覆盖已有的
+# 默认行为：自动追加 _1/_2 后缀
+
+# 显示 debug 日志
+python -m src.main input/ -o output/ -v
 ```
 
 ### 运行测试
 
 ```bash
-python -m pytest tests/ -v
+pytest tests/ -v
 ```
 
-### 打包 Windows .exe
+依赖真实 `.notes` 文件的集成测试在 `input/` 为空时会自动 skip。
 
-本项目通过 GitHub Actions 自动构建 Windows 版本，无需在本地操作：
+### 打包跨平台二进制
 
-1. 进入仓库的 **Actions** 页面
-2. 选择 **Build Windows exe** 工作流
-3. 点击 **Run workflow**
-4. 构建完成后，在 Artifacts 中下载 `yinxiang-converter-windows`
+通过推送 `v*` tag 自动触发 GitHub Actions 构建 Windows 和 macOS 二进制并发布到 Releases：
 
-如需本地打包（需在 Windows 环境下）：
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+也可以本地打包：
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --name convert --hidden-import=src --hidden-import=src.main --hidden-import=src.decryptor --hidden-import=src.converter --hidden-import=src.resource_handler app.py
+pyinstaller --onefile --name convert \
+  --hidden-import=src --hidden-import=src.main \
+  --hidden-import=src.decryptor --hidden-import=src.converter \
+  --hidden-import=src.resource_handler app.py
 ```
 
 ---
+
+## 安全报告
+
+发现漏洞请见 [SECURITY.md](./SECURITY.md)。
 
 ## 致谢
 

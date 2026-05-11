@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import hmac
+import logging
 from pathlib import Path
 from typing import Optional, Union
 from xml.etree.ElementTree import Element
@@ -11,6 +12,8 @@ import defusedxml.ElementTree as ET
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
+
+logger = logging.getLogger(__name__)
 
 HMAC_KEY = b"{22C58AC3-F1C7-4D96-8B88-5E4BBF505817}"
 SIGNATURE = b"ENC0"
@@ -90,7 +93,8 @@ def _parse_resource(res_elem: Element) -> Optional[dict]:
     encoding = data_elem.get("encoding", "base64")
     try:
         raw = base64.b64decode(data_elem.text)
-    except Exception:
+    except Exception as e:
+        logger.warning("resource: base64 decode failed (%s); skipping", e)
         return None
 
     if encoding == "base64:aes":
@@ -99,10 +103,14 @@ def _parse_resource(res_elem: Element) -> Optional[dict]:
             # Resources are typically binary; if we got valid UTF-8 text, keep as bytes
             if not isinstance(raw, bytes):
                 raw = raw.encode("utf-8") if raw else b""
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                "resource: AES decryption failed (%s); falling back to raw base64", e
+            )
             try:
                 raw = base64.b64decode(data_elem.text)
-            except Exception:
+            except Exception as inner:
+                logger.warning("resource: fallback base64 decode also failed (%s); skipping", inner)
                 return None
 
     mime_elem = res_elem.find("mime")
@@ -144,7 +152,12 @@ def parse_notes_file(filepath: Union[str, Path]) -> list[dict]:
                 try:
                     raw = base64.b64decode(content_elem.text)
                     content = decrypt_content(raw)
-                except Exception:
+                except Exception as e:
+                    logger.warning(
+                        "note %r: content decryption failed (%s); keeping ciphertext",
+                        title,
+                        e,
+                    )
                     content = content_elem.text
             else:
                 content = content_elem.text

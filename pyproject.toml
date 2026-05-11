@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yinxiang-to-markdown"
+version = "0.1.0"
+description = "Convert encrypted Yinxiang/Evernote .notes exports to Markdown."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+keywords = ["evernote", "yinxiang", "markdown", "obsidian", "notes"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Text Processing :: Markup",
+]
+dependencies = [
+    "cryptography>=42.0.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.0.0",
+    "defusedxml>=0.7.1",
+    "tqdm>=4.66.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pyinstaller>=6.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/micherwa/yinxiang-to-markdown"
+Issues = "https://github.com/micherwa/yinxiang-to-markdown/issues"
+Changelog = "https://github.com/micherwa/yinxiang-to-markdown/blob/main/CHANGELOG.md"
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::bs4.XMLParsedAsHTMLWarning"]

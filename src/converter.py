@@ -7,8 +7,11 @@ from bs4 import BeautifulSoup, NavigableString, Tag, XMLParsedAsHTMLWarning
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
+# Block-level container tags whose children should each end with a newline
+_BLOCK_CONTAINERS = {"div", "p", "en-note", "body", "html"}
 
-def enml_to_markdown(enml: str, resource_map: dict[str, str]) -> str:
+
+def enml_to_markdown(enml: str, resource_map: dict) -> str:
     """Convert ENML (Evernote Markup Language) to Markdown.
 
     Args:
@@ -20,15 +23,18 @@ def enml_to_markdown(enml: str, resource_map: dict[str, str]) -> str:
     """
     soup = BeautifulSoup(enml, "lxml")
     root = soup.find("en-note") or soup
-    parts: list[str] = []
-    _convert_element(root, resource_map, parts)
+    parts: list = []
+    _convert_element(root, resource_map, parts, list_depth=0)
     result = "".join(parts)
     result = _clean_blank_lines(result)
     return result.strip()
 
 
-def _convert_element(element, resource_map: dict[str, str], parts: list[str]) -> None:
-    """Recursively convert a DOM element to Markdown."""
+def _convert_element(element, resource_map: dict, parts: list, *, list_depth: int) -> None:
+    """Recursively convert a DOM element to Markdown.
+
+    list_depth lets nested ul/ol indent correctly.
+    """
     if isinstance(element, NavigableString):
         text = str(element)
         if text.strip():
@@ -42,12 +48,12 @@ def _convert_element(element, resource_map: dict[str, str], parts: list[str]) ->
     if name is None:
         return
 
-    # Handle block-level elements that need newlines
+    # --- Block-level ---
+
     if name in ("h1", "h2", "h3", "h4", "h5", "h6"):
         level = int(name[1])
-        prefix = "#" * level
         text = _get_text_content(element)
-        parts.append(f"\n{prefix} {text}\n")
+        parts.append(f"\n{'#' * level} {text}\n")
         return
 
     if name == "hr":
@@ -55,47 +61,36 @@ def _convert_element(element, resource_map: dict[str, str], parts: list[str]) ->
         return
 
     if name == "pre":
-        text = element.get_text()
-        parts.append(f"\n```\n{text}\n```\n")
+        parts.append(f"\n```\n{element.get_text()}\n```\n")
         return
 
     if name == "br":
         parts.append("\n")
         return
 
+    if name == "blockquote":
+        inner_parts: list = []
+        for child in element.children:
+            _convert_element(child, resource_map, inner_parts, list_depth=list_depth)
+        inner = _clean_blank_lines("".join(inner_parts)).strip()
+        if inner:
+            quoted = "\n".join(f"> {ln}" if ln else ">" for ln in inner.split("\n"))
+            parts.append(f"\n{quoted}\n")
+        return
+
     if name == "table":
         _convert_table(element, parts)
         return
 
-    if name == "ul":
-        for li in element.find_all("li", recursive=False):
-            text = _get_text_content(li)
-            parts.append(f"\n- {text}")
-        parts.append("\n")
-        return
-
-    if name == "ol":
-        for i, li in enumerate(element.find_all("li", recursive=False), start=1):
-            text = _get_text_content(li)
-            parts.append(f"\n{i}. {text}")
-        parts.append("\n")
+    if name in ("ul", "ol"):
+        _convert_list(element, resource_map, parts, list_depth=list_depth)
         return
 
     if name == "en-todo":
+        # Just emit the checkbox prefix; the surrounding container (typically
+        # <div>) is responsible for the label and trailing newline.
         checked = element.get("checked", "").lower() == "true"
-        checkbox = "- [x] " if checked else "- [ ] "
-        # Get sibling text (text after the tag in the same parent)
-        label_parts: list[str] = []
-        for sib in element.next_siblings:
-            if isinstance(sib, NavigableString):
-                label_parts.append(str(sib))
-            elif isinstance(sib, Tag) and sib.name not in ("en-todo",):
-                label_parts.append(_get_text_content(sib))
-                break
-            else:
-                break
-        label = "".join(label_parts).strip()
-        parts.append(f"\n{checkbox}{label}\n")
+        parts.append("- [x] " if checked else "- [ ] ")
         return
 
     if name == "en-media":
@@ -112,52 +107,82 @@ def _convert_element(element, resource_map: dict[str, str], parts: list[str]) ->
             parts.append(f"附件({hash_val})" if hash_val else "附件")
         return
 
-    # Inline elements
-    if name == "b" or name == "strong":
-        text = _get_text_content(element)
-        parts.append(f"**{text}**")
+    # --- Inline ---
+
+    if name in ("b", "strong"):
+        parts.append(f"**{_get_text_content(element)}**")
         return
 
-    if name == "i" or name == "em":
-        text = _get_text_content(element)
-        parts.append(f"*{text}*")
+    if name in ("i", "em"):
+        parts.append(f"*{_get_text_content(element)}*")
+        return
+
+    if name in ("del", "strike", "s"):
+        parts.append(f"~~{_get_text_content(element)}~~")
+        return
+
+    if name == "u":
+        # Markdown has no native underline; keep raw HTML (Obsidian renders it).
+        parts.append(f"<u>{_get_text_content(element)}</u>")
+        return
+
+    if name in ("sub", "sup"):
+        parts.append(f"<{name}>{_get_text_content(element)}</{name}>")
         return
 
     if name == "a":
         href = element.get("href", "")
-        text = _get_text_content(element)
-        parts.append(f"[{text}]({href})")
+        parts.append(f"[{_get_text_content(element)}]({href})")
         return
 
     if name == "code":
-        text = element.get_text()
-        parts.append(f"`{text}`")
+        parts.append(f"`{element.get_text()}`")
         return
 
-    # Container tags: div, p, span, en-note - recurse into children
-    if name in ("div", "p", "span", "en-note", "body", "html"):
+    # --- Containers / fall-through ---
+
+    if name in _BLOCK_CONTAINERS:
         for child in element.children:
-            _convert_element(child, resource_map, parts)
-        # Add newline after block containers
+            _convert_element(child, resource_map, parts, list_depth=list_depth)
         if name in ("div", "p", "en-note"):
             parts.append("\n")
         return
 
-    # tr, td, th - handled inside table
-    if name in ("tr", "td", "th"):
+    # tr/td/th — handled by _convert_table; if reached standalone, just recurse
+    if name in ("tr", "td", "th", "li"):
         for child in element.children:
-            _convert_element(child, resource_map, parts)
+            _convert_element(child, resource_map, parts, list_depth=list_depth)
         return
 
-    # li - handled in ul/ol
-    if name == "li":
-        for child in element.children:
-            _convert_element(child, resource_map, parts)
-        return
-
-    # Default: recurse
+    # Unknown tag: recurse into children
     for child in element.children:
-        _convert_element(child, resource_map, parts)
+        _convert_element(child, resource_map, parts, list_depth=list_depth)
+
+
+def _convert_list(list_elem: Tag, resource_map: dict, parts: list, *, list_depth: int) -> None:
+    """Convert <ul>/<ol> to Markdown, with nested-list indentation support."""
+    indent = "  " * list_depth
+    is_ordered = list_elem.name == "ol"
+    items = list_elem.find_all("li", recursive=False)
+    for i, li in enumerate(items, start=1):
+        marker = f"{i}." if is_ordered else "-"
+        # Render li children: split into "inline" content (this line) and
+        # nested lists / blocks (subsequent lines).
+        inline_parts: list = []
+        nested_parts: list = []
+        for child in li.children:
+            if isinstance(child, Tag) and child.name in ("ul", "ol"):
+                _convert_list(
+                    child, resource_map, nested_parts, list_depth=list_depth + 1
+                )
+            else:
+                _convert_element(child, resource_map, inline_parts, list_depth=list_depth)
+        inline_text = "".join(inline_parts).strip().replace("\n", " ")
+        parts.append(f"\n{indent}{marker} {inline_text}".rstrip() + "")
+        if nested_parts:
+            parts.append("".join(nested_parts))
+    if list_depth == 0:
+        parts.append("\n")
 
 
 def _get_text_content(element) -> str:
@@ -169,14 +194,13 @@ def _get_text_content(element) -> str:
     return ""
 
 
-def _convert_table(table: Tag, parts: list[str]) -> None:
+def _convert_table(table: Tag, parts: list) -> None:
     """Convert HTML table to Markdown table."""
-    rows: list[list[str]] = []
-    trs = table.find_all("tr")
-    for tr in trs:
-        cells: list[str] = []
+    rows: list = []
+    for tr in table.find_all("tr"):
+        cells: list = []
         for cell in tr.find_all(["td", "th"]):
-            cells.append(_get_text_content(cell).strip())
+            cells.append(_get_text_content(cell).strip().replace("\n", " "))
         if cells:
             rows.append(cells)
 
@@ -184,12 +208,10 @@ def _convert_table(table: Tag, parts: list[str]) -> None:
         return
 
     parts.append("\n")
-    # First row as header
     header = rows[0]
     parts.append("| " + " | ".join(header) + " |\n")
     parts.append("| " + " | ".join("---" for _ in header) + " |\n")
     for row in rows[1:]:
-        # Pad row to same length as header if needed
         while len(row) < len(header):
             row.append("")
         parts.append("| " + " | ".join(row[: len(header)]) + " |\n")
