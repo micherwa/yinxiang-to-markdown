@@ -16,6 +16,7 @@ Thumbs.db
 
 # Local user data (never commit private notes)
 input/*.notes
+input/*/
 output/*/
 
 # Python packaging
