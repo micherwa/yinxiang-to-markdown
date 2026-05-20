@@ -160,14 +160,39 @@ def _convert_element(element, resource_map: dict, parts: list, *, list_depth: in
 
 
 def _convert_list(list_elem: Tag, resource_map: dict, parts: list, *, list_depth: int) -> None:
-    """Convert <ul>/<ol> to Markdown, with nested-list indentation support."""
+    """Convert <ul>/<ol> to Markdown, with nested-list indentation support.
+
+    Handles two structures for nested lists:
+    1. Standard: <ul><li>x<ul>...</ul></li></ul>           (nested inside <li>)
+    2. Evernote HTML export: <ul><li>x</li><ul>...</ul></ul>  (nested as sibling of <li>)
+
+    In case 2 the sibling <ul>/<ol> is attached to the preceding <li>. An orphan
+    sibling list with no preceding <li> is rendered one level deeper as a
+    standalone list.
+    """
     indent = "  " * list_depth
     is_ordered = list_elem.name == "ol"
-    items = list_elem.find_all("li", recursive=False)
-    for i, li in enumerate(items, start=1):
+
+    # Group direct children: each <li> may pick up subsequent sibling <ul>/<ol>
+    # as its nested children (Evernote export pattern).
+    groups: list = []  # list of (li_tag, [sibling_nested_list, ...])
+    orphan_nested: list = []  # sibling lists appearing before any <li>
+    for child in list_elem.children:
+        if not isinstance(child, Tag):
+            continue
+        if child.name == "li":
+            groups.append((child, []))
+        elif child.name in ("ul", "ol"):
+            if groups:
+                groups[-1][1].append(child)
+            else:
+                orphan_nested.append(child)
+
+    for orphan in orphan_nested:
+        _convert_list(orphan, resource_map, parts, list_depth=list_depth + 1)
+
+    for i, (li, sibling_nested) in enumerate(groups, start=1):
         marker = f"{i}." if is_ordered else "-"
-        # Render li children: split into "inline" content (this line) and
-        # nested lists / blocks (subsequent lines).
         inline_parts: list = []
         nested_parts: list = []
         for child in li.children:
@@ -177,8 +202,10 @@ def _convert_list(list_elem: Tag, resource_map: dict, parts: list, *, list_depth
                 )
             else:
                 _convert_element(child, resource_map, inline_parts, list_depth=list_depth)
+        for sib in sibling_nested:
+            _convert_list(sib, resource_map, nested_parts, list_depth=list_depth + 1)
         inline_text = "".join(inline_parts).strip().replace("\n", " ")
-        parts.append(f"\n{indent}{marker} {inline_text}".rstrip() + "")
+        parts.append(f"\n{indent}{marker} {inline_text}".rstrip())
         if nested_parts:
             parts.append("".join(nested_parts))
     if list_depth == 0:

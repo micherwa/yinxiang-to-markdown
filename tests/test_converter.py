@@ -140,6 +140,60 @@ def test_nested_unordered_list():
     assert "  - inner" in md
 
 
+def test_nested_list_evernote_sibling_ul():
+    """Evernote HTML export puts the nested <ul> as a SIBLING of <li>, not inside it.
+
+    Structure: <ul><li>outer</li><ul><li>inner</li></ul></ul>
+    The sibling <ul> must be attached to the preceding <li>.
+    """
+    enml = (
+        '<en-note><ul>'
+        '<li><div>outer</div></li>'
+        '<ul><li><div>inner1</div></li><li><div>inner2</div></li></ul>'
+        '</ul></en-note>'
+    )
+    md = enml_to_markdown(enml, {})
+    assert "- outer" in md
+    assert "  - inner1" in md
+    assert "  - inner2" in md
+
+
+def test_nested_list_evernote_multiple_outer_items():
+    """Only the last <li> before a sibling <ul> picks it up as nested children."""
+    enml = (
+        '<en-note><ul>'
+        '<li><div>a</div></li>'
+        '<li><div>b</div></li>'
+        '<li><div>c</div></li>'
+        '<ul><li><div>c.1</div></li></ul>'
+        '</ul></en-note>'
+    )
+    md = enml_to_markdown(enml, {})
+    assert "- a" in md
+    assert "- b" in md
+    assert "- c" in md
+    assert "  - c.1" in md
+    # c.1 must be indented under c, not appear as a top-level item
+    assert "\n- c.1" not in md
+
+
+def test_nested_list_evernote_three_levels():
+    """Three-level nesting via sibling <ul> structure (also Evernote-style)."""
+    enml = (
+        '<en-note><ul>'
+        '<li><div>L1</div></li>'
+        '<ul>'
+        '<li><div>L2</div></li>'
+        '<ul><li><div>L3</div></li></ul>'
+        '</ul>'
+        '</ul></en-note>'
+    )
+    md = enml_to_markdown(enml, {})
+    assert "- L1" in md
+    assert "  - L2" in md
+    assert "    - L3" in md
+
+
 def test_en_todo_in_div():
     """en-todo inside a div should produce a checkbox followed by the div's text."""
     enml = '<en-note><div><en-todo checked="true"/>Task A</div><div><en-todo checked="false"/>Task B</div></en-note>'
