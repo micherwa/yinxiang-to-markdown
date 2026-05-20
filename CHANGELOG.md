@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-05-20
+
+### Fixed
+- 嵌套列表内容丢失：印象笔记 HTML/ENML 导出会把嵌套 `<ul>/<ol>` 作为 `<li>` 的兄弟节点而非子节点，导致整段内层列表被静默丢弃。现已正确归并到上一个 `<li>` 作为嵌套子列表渲染（[#fix-nested-lists](https://github.com/micherwa/yinxiang-to-markdown/commit/f6e97c3)）。
+
 ## [0.1.0] - 2026-05-11
 
 ### Added
@@ -23,5 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `defusedxml` 防御不可信 XML 输入
 - MIT License
 
-[Unreleased]: https://github.com/micherwa/yinxiang-to-markdown/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/micherwa/yinxiang-to-markdown/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/micherwa/yinxiang-to-markdown/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/micherwa/yinxiang-to-markdown/releases/tag/v0.1.0
